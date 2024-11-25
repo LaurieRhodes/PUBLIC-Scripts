@@ -1,0 +1,219 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "PlaybookName": {
+            "defaultValue": "Get-GraphSecureScore",
+            "type": "String"
+        }
+    },
+    "variables": {
+    },
+    "resources": [
+        {
+            "type": "Microsoft.Logic/workflows",
+            "apiVersion": "2019-05-01",
+            "name": "[parameters('PlaybookName')]",
+            "location": "[resourceGroup().location]",
+            "dependsOn": [
+            ],
+            "identity": {
+                "type": "SystemAssigned"
+            },
+            "properties": {
+                "state": "Enabled",
+                "definition": {
+                    "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+                    "contentVersion": "1.0.0.0",
+                    "triggers": {
+                        "Recurrence": {
+                            "recurrence": {
+                                "frequency": "Day",
+                                "interval": 1
+                            },
+                            "evaluatedRecurrence": {
+                                "frequency": "Day",
+                                "interval": 1
+                            },
+                            "type": "Recurrence"
+                        }
+                    },
+                    "actions": {
+                        "HTTP_Get_Graph_Secure_Score": {
+                            "runAfter": {},
+                            "type": "Http",
+                            "inputs": {
+                                "uri": "https://graph.microsoft.com/beta/security/securescores",
+                                "method": "GET",
+                                "authentication": {
+                                    "type": "ManagedServiceIdentity",
+                                    "audience": "https://graph.microsoft.com"
+                                }
+                            }
+                        },
+                        "Send_To_ADX_SecureScore": {
+                            "runAfter": {
+                                "HTTP_Get_Graph_Secure_Score": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "type": "Http",
+                            "inputs": {
+                                "uri": "@{parameters('ADX_Cluster')}/v1/rest/ingest/@{parameters('ADX_Database')}/SecureScoreRaw?streamFormat=Json",
+                                "method": "POST",
+                                "headers": {
+                                    "Content-Type": "application/json",
+                                    "host": "@{replace(parameters('ADX_Cluster'),'https://','')}"
+                                },
+                                "body": {
+                                    "records": "@body('HTTP_Get_Graph_Secure_Score')?['value']"
+                                },
+                                "authentication": {
+                                    "type": "ManagedServiceIdentity",
+                                    "audience": "https://kusto.kusto.windows.net"
+                                }
+                            }
+                        },
+                        "Initialize_Results_Array": {
+                            "runAfter": {
+                                "Send_To_ADX_SecureScore": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "type": "InitializeVariable",
+                            "inputs": {
+                                "variables": [
+                                    {
+                                        "name": "allResults",
+                                        "type": "array",
+                                        "value": []
+                                    }
+                                ]
+                            }
+                        },
+                        "Initialize_NextLink": {
+                            "runAfter": {
+                                "Initialize_Results_Array": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "type": "InitializeVariable",
+                            "inputs": {
+                                "variables": [
+                                    {
+                                        "name": "nextLink",
+                                        "type": "string",
+                                        "value": "https://graph.microsoft.com/beta/security/secureScoreControlProfiles"
+                                    }
+                                ]
+                            }
+                        },
+                        "Until_No_More_Pages": {
+                            "actions": {
+                                "HTTP_Get_Page": {
+                                    "type": "Http",
+                                    "inputs": {
+                                        "uri": "@variables('nextLink')",
+                                        "method": "GET",
+                                        "authentication": {
+                                            "type": "ManagedServiceIdentity",
+                                            "audience": "https://graph.microsoft.com"
+                                        }
+                                    }
+                                },
+                                "Compose_Combined_Results": {
+                                    "runAfter": {
+                                        "HTTP_Get_Page": [
+                                            "Succeeded"
+                                        ]
+                                    },
+                                    "type": "Compose",
+                                    "inputs": "@union(variables('allResults'), body('HTTP_Get_Page')?['value'])"
+                                },
+                                "Set_Combined_Results": {
+                                    "runAfter": {
+                                        "Compose_Combined_Results": [
+                                            "Succeeded"
+                                        ]
+                                    },
+                                    "type": "SetVariable",
+                                    "inputs": {
+                                        "name": "allResults",
+                                        "value": "@outputs('Compose_Combined_Results')"
+                                    }
+                                },
+                                "Set_NextLink": {
+                                    "runAfter": {
+                                        "Set_Combined_Results": [
+                                            "Succeeded"
+                                        ]
+                                    },
+                                    "type": "SetVariable",
+                                    "inputs": {
+                                        "name": "nextLink",
+                                        "value": "@if(contains(body('HTTP_Get_Page'), '@odata.nextLink'), body('HTTP_Get_Page')?['@odata.nextLink'], '')"
+                                    }
+                                }
+                            },
+                            "runAfter": {
+                                "Initialize_NextLink": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "expression": "@equals(variables('nextLink'), '')",
+                            "limit": {
+                                "count": 100,
+                                "timeout": "PT1H"
+                            },
+                            "type": "Until"
+                        },
+                        "Send_To_ADX_secureScoreControlProfiles": {
+                            "runAfter": {
+                                "Until_No_More_Pages": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "type": "Http",
+                            "inputs": {
+                                "uri": "@{parameters('ADX_Cluster')}/v1/rest/ingest/@{parameters('ADX_Database')}/SecureScoreControlProfilesRaw?streamFormat=Json",
+                                "method": "POST",
+                                "headers": {
+                                    "Content-Type": "application/json",
+                                    "host": "@{replace(parameters('ADX_Cluster'),'https://','')}"
+                                },
+                                "body": {
+                                    "records": "@variables('allResults')"
+                                },
+                                "authentication": {
+                                    "type": "ManagedServiceIdentity",
+                                    "audience": "https://kusto.kusto.windows.net"
+                                }
+                            }
+                        }
+                    },
+                    "outputs": {},
+                    "parameters": {
+                        "ADX_Cluster": {
+                            "defaultValue": "https://securitylogs.australiasoutheast.kusto.windows.net",
+                            "type": "String"
+                        },
+                        "ADX_Database": {
+                            "defaultValue": "security",
+                            "type": "String"
+                        },
+                        "$connections": {
+                            "type": "Object",
+                            "defaultValue": {}
+                        }
+                    }
+                },
+              "parameters": {
+                  "$connections": {
+                      "value": {}
+                  }
+              }
+            }
+        }
+    ],
+    "outputs": {}
+}
