@@ -1,0 +1,30 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "location": {
+      "value": "Australia East"
+    },
+    "functionAppName": {
+      "value": "defendervulnerabilities"
+    },
+    "storageAccountName": {
+      "value": "vulnerabilities111"
+    },
+    "applicationInsightsName": {
+      "value": "defendervulnerabilities"
+    },
+    "userAssignedIdentityResourceId": {
+      "value": "/subscriptions/2be53ae5-6e46-47df-beb9-6f3a795387b8/resourceGroups/rg-ase-Defender_Vulnerabilities/providers/Microsoft.ManagedIdentity/userAssignedIdentities/mid-defender-vulnerabilities"
+    },
+    "clientID": {
+      "value": "xxxxxx-xxxxxx-xxxxxx-xxxxxx"
+    },
+    "eventHubNamespace": {
+      "value": "ehns-ase-defender01-ayfsr"
+    },
+    "eventHubName": {
+      "value": "Defender"
+    }
+  }
+}
