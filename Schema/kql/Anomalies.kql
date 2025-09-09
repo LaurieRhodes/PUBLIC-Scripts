@@ -1,0 +1,104 @@
+﻿// ============================================================================
+// Azure Data Explorer KQL Script for Anomalies
+// ============================================================================
+// Generated: 2025-09-09 11:39:44
+// Table type: Microsoft
+// Schema discovered using hybrid approach (Management API + getschema)
+// ============================================================================
+
+.create-merge table AnomaliesRaw (records:dynamic)
+
+.alter-merge table AnomaliesRaw policy retention softdelete = 1d
+
+.alter table AnomaliesRaw policy caching hot = 1h
+
+// JSON mapping - choose appropriate option based on data structure
+.create-or-alter table AnomaliesRaw ingestion json mapping 'AnomaliesRawMapping' '[{"column":"records","Properties":{"path":"$.records"}}]'
+// Alternative for direct events: '[{"column":"records","Properties":{"path":"$"}}]'
+
+.create-merge table Anomalies(
+TimeGenerated:datetime,
+TenantId:guid,
+ExtendedProperties:dynamic,
+Entities:dynamic,
+AnomalyReasons:dynamic,
+UserInsights:dynamic,
+DeviceInsights:dynamic,
+ActivityInsights:dynamic,
+DestinationDevice:string,
+DestinationLocation:dynamic,
+DestinationIpAddress:string,
+SourceDevice:string,
+SourceLocation:dynamic,
+SourceIpAddress:string,
+UserPrincipalName:string,
+UserName:string,
+Techniques:string,
+Tactics:string,
+ExtendedLinks:dynamic,
+Id:string,
+WorkspaceId:string,
+VendorName:string,
+AnomalyTemplateId:string,
+AnomalyTemplateName:string,
+AnomalyTemplateVersion:string,
+AnomalyDetails:dynamic,
+RuleId:string,
+RuleName:string,
+RuleConfigVersion:string,
+Score:real,
+Description:string,
+StartTime:datetime,
+EndTime:datetime,
+RuleStatus:string,
+SourceSystem:string,
+Type:string,
+_TimeReceived:datetime)
+
+.alter table Anomalies policy caching hot = 1d
+
+.create-or-alter function AnomaliesExpand() {
+AnomaliesRaw
+| mv-expand events = records
+// Alternative for non-nested: | extend events = records
+| project
+TimeGenerated=todatetime(events.TimeGenerated),
+TenantId=toguid(events.TenantId),
+ExtendedProperties=todynamic(events.ExtendedProperties),
+Entities=todynamic(events.Entities),
+AnomalyReasons=todynamic(events.AnomalyReasons),
+UserInsights=todynamic(events.UserInsights),
+DeviceInsights=todynamic(events.DeviceInsights),
+ActivityInsights=todynamic(events.ActivityInsights),
+DestinationDevice=tostring(events.DestinationDevice),
+DestinationLocation=todynamic(events.DestinationLocation),
+DestinationIpAddress=tostring(events.DestinationIpAddress),
+SourceDevice=tostring(events.SourceDevice),
+SourceLocation=todynamic(events.SourceLocation),
+SourceIpAddress=tostring(events.SourceIpAddress),
+UserPrincipalName=tostring(events.UserPrincipalName),
+UserName=tostring(events.UserName),
+Techniques=tostring(events.Techniques),
+Tactics=tostring(events.Tactics),
+ExtendedLinks=todynamic(events.ExtendedLinks),
+Id=tostring(events.Id),
+WorkspaceId=tostring(events.WorkspaceId),
+VendorName=tostring(events.VendorName),
+AnomalyTemplateId=tostring(events.AnomalyTemplateId),
+AnomalyTemplateName=tostring(events.AnomalyTemplateName),
+AnomalyTemplateVersion=tostring(events.AnomalyTemplateVersion),
+AnomalyDetails=todynamic(events.AnomalyDetails),
+RuleId=tostring(events.RuleId),
+RuleName=tostring(events.RuleName),
+RuleConfigVersion=tostring(events.RuleConfigVersion),
+Score=toreal(events.Score),
+Description=tostring(events.Description),
+StartTime=todatetime(events.StartTime),
+EndTime=todatetime(events.EndTime),
+RuleStatus=tostring(events.RuleStatus),
+SourceSystem=tostring(events.SourceSystem),
+Type=tostring(events.Type),
+_TimeReceived=todatetime(now())
+}
+
+.alter table Anomalies policy update @'[{"Source": "AnomaliesRaw", "Query": "AnomaliesExpand()", "IsEnabled": "True", "IsTransactional": true}]'

@@ -1,0 +1,46 @@
+﻿// ============================================================================
+// Azure Data Explorer KQL Script for GoogleCloudSCC
+// ============================================================================
+// Generated: 2025-09-09 11:40:13
+// Table type: Microsoft
+// Schema discovered using hybrid approach (Management API + getschema)
+// ============================================================================
+
+.create-merge table GoogleCloudSCCRaw (records:dynamic)
+
+.alter-merge table GoogleCloudSCCRaw policy retention softdelete = 1d
+
+.alter table GoogleCloudSCCRaw policy caching hot = 1h
+
+// JSON mapping - choose appropriate option based on data structure
+.create-or-alter table GoogleCloudSCCRaw ingestion json mapping 'GoogleCloudSCCRawMapping' '[{"column":"records","Properties":{"path":"$.records"}}]'
+// Alternative for direct events: '[{"column":"records","Properties":{"path":"$"}}]'
+
+.create-merge table GoogleCloudSCC(
+TimeGenerated:datetime,
+TenantId:guid,
+Findings:dynamic,
+FindingsResource:dynamic,
+SourceProperties:dynamic,
+SourceSystem:string,
+Type:string,
+_TimeReceived:datetime)
+
+.alter table GoogleCloudSCC policy caching hot = 1d
+
+.create-or-alter function GoogleCloudSCCExpand() {
+GoogleCloudSCCRaw
+| mv-expand events = records
+// Alternative for non-nested: | extend events = records
+| project
+TimeGenerated=todatetime(events.TimeGenerated),
+TenantId=toguid(events.TenantId),
+Findings=todynamic(events.Findings),
+FindingsResource=todynamic(events.FindingsResource),
+SourceProperties=todynamic(events.SourceProperties),
+SourceSystem=tostring(events.SourceSystem),
+Type=tostring(events.Type),
+_TimeReceived=todatetime(now())
+}
+
+.alter table GoogleCloudSCC policy update @'[{"Source": "GoogleCloudSCCRaw", "Query": "GoogleCloudSCCExpand()", "IsEnabled": "True", "IsTransactional": true}]'

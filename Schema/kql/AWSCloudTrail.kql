@@ -1,0 +1,134 @@
+﻿// ============================================================================
+// Azure Data Explorer KQL Script for AWSCloudTrail
+// ============================================================================
+// Generated: 2025-09-09 11:39:53
+// Table type: Microsoft
+// Schema discovered using hybrid approach (Management API + getschema)
+// ============================================================================
+
+.create-merge table AWSCloudTrailRaw (records:dynamic)
+
+.alter-merge table AWSCloudTrailRaw policy retention softdelete = 1d
+
+.alter table AWSCloudTrailRaw policy caching hot = 1h
+
+// JSON mapping - choose appropriate option based on data structure
+.create-or-alter table AWSCloudTrailRaw ingestion json mapping 'AWSCloudTrailRawMapping' '[{"column":"records","Properties":{"path":"$.records"}}]'
+// Alternative for direct events: '[{"column":"records","Properties":{"path":"$"}}]'
+
+.create-merge table AWSCloudTrail(
+TimeGenerated:datetime,
+TenantId:guid,
+RequestParameters:string,
+ResponseElements:string,
+AdditionalEventData:string,
+AwsRequestId:guid,
+AwsRequestId_:string,
+Resources:string,
+APIVersion:string,
+ReadOnly:bool,
+RecipientAccountId:string,
+ServiceEventDetails:string,
+SharedEventId:guid,
+VpcEndpointId:string,
+ManagementEvent:bool,
+SourceSystem:string,
+OperationName:string,
+Category:string,
+TlsVersion:string,
+CipherSuite:string,
+ClientProvidedHostHeader:string,
+IpProtocol:string,
+SourcePort:string,
+ErrorMessage:string,
+DestinationPort:string,
+ErrorCode:string,
+SourceIpAddress:string,
+AwsEventId:guid,
+EventVersion:string,
+EventSource:string,
+EventTypeName:string,
+EventName:string,
+UserIdentityType:string,
+UserIdentityPrincipalid:string,
+UserIdentityArn:string,
+UserIdentityAccountId:string,
+UserIdentityInvokedBy:string,
+UserIdentityAccessKeyId:string,
+UserIdentityUserName:string,
+SessionMfaAuthenticated:bool,
+SessionCreationDate:datetime,
+SessionIssuerType:string,
+SessionIssuerPrincipalId:string,
+SessionIssuerArn:string,
+SessionIssuerAccountId:string,
+SessionIssuerUserName:string,
+EC2RoleDelivery:string,
+AWSRegion:string,
+UserAgent:string,
+CidrIp:string,
+Type:string,
+_TimeReceived:datetime)
+
+.alter table AWSCloudTrail policy caching hot = 1d
+
+.create-or-alter function AWSCloudTrailExpand() {
+AWSCloudTrailRaw
+| mv-expand events = records
+// Alternative for non-nested: | extend events = records
+| project
+TimeGenerated=todatetime(events.TimeGenerated),
+TenantId=toguid(events.TenantId),
+RequestParameters=tostring(events.RequestParameters),
+ResponseElements=tostring(events.ResponseElements),
+AdditionalEventData=tostring(events.AdditionalEventData),
+AwsRequestId=toguid(events.AwsRequestId),
+AwsRequestId_=tostring(events.AwsRequestId_),
+Resources=tostring(events.Resources),
+APIVersion=tostring(events.APIVersion),
+ReadOnly=tobool(events.ReadOnly),
+RecipientAccountId=tostring(events.RecipientAccountId),
+ServiceEventDetails=tostring(events.ServiceEventDetails),
+SharedEventId=toguid(events.SharedEventId),
+VpcEndpointId=tostring(events.VpcEndpointId),
+ManagementEvent=tobool(events.ManagementEvent),
+SourceSystem=tostring(events.SourceSystem),
+OperationName=tostring(events.OperationName),
+Category=tostring(events.Category),
+TlsVersion=tostring(events.TlsVersion),
+CipherSuite=tostring(events.CipherSuite),
+ClientProvidedHostHeader=tostring(events.ClientProvidedHostHeader),
+IpProtocol=tostring(events.IpProtocol),
+SourcePort=tostring(events.SourcePort),
+ErrorMessage=tostring(events.ErrorMessage),
+DestinationPort=tostring(events.DestinationPort),
+ErrorCode=tostring(events.ErrorCode),
+SourceIpAddress=tostring(events.SourceIpAddress),
+AwsEventId=toguid(events.AwsEventId),
+EventVersion=tostring(events.EventVersion),
+EventSource=tostring(events.EventSource),
+EventTypeName=tostring(events.EventTypeName),
+EventName=tostring(events.EventName),
+UserIdentityType=tostring(events.UserIdentityType),
+UserIdentityPrincipalid=tostring(events.UserIdentityPrincipalid),
+UserIdentityArn=tostring(events.UserIdentityArn),
+UserIdentityAccountId=tostring(events.UserIdentityAccountId),
+UserIdentityInvokedBy=tostring(events.UserIdentityInvokedBy),
+UserIdentityAccessKeyId=tostring(events.UserIdentityAccessKeyId),
+UserIdentityUserName=tostring(events.UserIdentityUserName),
+SessionMfaAuthenticated=tobool(events.SessionMfaAuthenticated),
+SessionCreationDate=todatetime(events.SessionCreationDate),
+SessionIssuerType=tostring(events.SessionIssuerType),
+SessionIssuerPrincipalId=tostring(events.SessionIssuerPrincipalId),
+SessionIssuerArn=tostring(events.SessionIssuerArn),
+SessionIssuerAccountId=tostring(events.SessionIssuerAccountId),
+SessionIssuerUserName=tostring(events.SessionIssuerUserName),
+EC2RoleDelivery=tostring(events.EC2RoleDelivery),
+AWSRegion=tostring(events.AWSRegion),
+UserAgent=tostring(events.UserAgent),
+CidrIp=tostring(events.CidrIp),
+Type=tostring(events.Type),
+_TimeReceived=todatetime(now())
+}
+
+.alter table AWSCloudTrail policy update @'[{"Source": "AWSCloudTrailRaw", "Query": "AWSCloudTrailExpand()", "IsEnabled": "True", "IsTransactional": true}]'

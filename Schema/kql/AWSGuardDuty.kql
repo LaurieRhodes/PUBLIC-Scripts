@@ -1,0 +1,66 @@
+﻿// ============================================================================
+// Azure Data Explorer KQL Script for AWSGuardDuty
+// ============================================================================
+// Generated: 2025-09-09 11:40:10
+// Table type: Microsoft
+// Schema discovered using hybrid approach (Management API + getschema)
+// ============================================================================
+
+.create-merge table AWSGuardDutyRaw (records:dynamic)
+
+.alter-merge table AWSGuardDutyRaw policy retention softdelete = 1d
+
+.alter table AWSGuardDutyRaw policy caching hot = 1h
+
+// JSON mapping - choose appropriate option based on data structure
+.create-or-alter table AWSGuardDutyRaw ingestion json mapping 'AWSGuardDutyRawMapping' '[{"column":"records","Properties":{"path":"$.records"}}]'
+// Alternative for direct events: '[{"column":"records","Properties":{"path":"$"}}]'
+
+.create-merge table AWSGuardDuty(
+TimeGenerated:datetime,
+TenantId:guid,
+SchemaVersion:string,
+AccountId:string,
+Region:string,
+Partition:string,
+Id:string,
+Arn:string,
+ActivityType:string,
+ResourceDetails:dynamic,
+ServiceDetails:dynamic,
+Severity:int,
+TimeCreated:datetime,
+Title:string,
+Description:string,
+SourceSystem:string,
+Type:string,
+_TimeReceived:datetime)
+
+.alter table AWSGuardDuty policy caching hot = 1d
+
+.create-or-alter function AWSGuardDutyExpand() {
+AWSGuardDutyRaw
+| mv-expand events = records
+// Alternative for non-nested: | extend events = records
+| project
+TimeGenerated=todatetime(events.TimeGenerated),
+TenantId=toguid(events.TenantId),
+SchemaVersion=tostring(events.SchemaVersion),
+AccountId=tostring(events.AccountId),
+Region=tostring(events.Region),
+Partition=tostring(events.Partition),
+Id=tostring(events.Id),
+Arn=tostring(events.Arn),
+ActivityType=tostring(events.ActivityType),
+ResourceDetails=todynamic(events.ResourceDetails),
+ServiceDetails=todynamic(events.ServiceDetails),
+Severity=toint(events.Severity),
+TimeCreated=todatetime(events.TimeCreated),
+Title=tostring(events.Title),
+Description=tostring(events.Description),
+SourceSystem=tostring(events.SourceSystem),
+Type=tostring(events.Type),
+_TimeReceived=todatetime(now())
+}
+
+.alter table AWSGuardDuty policy update @'[{"Source": "AWSGuardDutyRaw", "Query": "AWSGuardDutyExpand()", "IsEnabled": "True", "IsTransactional": true}]'

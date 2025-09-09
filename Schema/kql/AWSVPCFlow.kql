@@ -1,0 +1,118 @@
+﻿// ============================================================================
+// Azure Data Explorer KQL Script for AWSVPCFlow
+// ============================================================================
+// Generated: 2025-09-09 11:40:11
+// Table type: Microsoft
+// Schema discovered using hybrid approach (Management API + getschema)
+// ============================================================================
+
+.create-merge table AWSVPCFlowRaw (records:dynamic)
+
+.alter-merge table AWSVPCFlowRaw policy retention softdelete = 1d
+
+.alter table AWSVPCFlowRaw policy caching hot = 1h
+
+// JSON mapping - choose appropriate option based on data structure
+.create-or-alter table AWSVPCFlowRaw ingestion json mapping 'AWSVPCFlowRawMapping' '[{"column":"records","Properties":{"path":"$.records"}}]'
+// Alternative for direct events: '[{"column":"records","Properties":{"path":"$"}}]'
+
+.create-merge table AWSVPCFlow(
+TimeGenerated:datetime,
+TenantId:guid,
+AzId:string,
+SublocationType:string,
+SublocationId:string,
+PktSrcAwsService:string,
+PktDstAwsService:string,
+FlowDirection:string,
+TrafficPath:string,
+Start:datetime,
+EcsClusterArn:string,
+EcsClusterName:string,
+EcsContainerInstanceArn:string,
+EcsContainerInstanceId:string,
+EcsContainerId:string,
+EcsSecondContainerId:string,
+EcsServiceName:string,
+EcsTaskDefinitionArn:string,
+EcsTaskArn:string,
+Region:string,
+EcsTaskId:string,
+PktDstAddr:string,
+TrafficType:string,
+Version:int,
+AccountId:string,
+InterfaceId:string,
+SrcAddr:string,
+DstAddr:string,
+SrcPort:int,
+DstPort:int,
+Protocol:int,
+Packets:int,
+Bytes:long,
+End:datetime,
+Action:string,
+LogStatus:string,
+VpcId:string,
+SubnetId:string,
+InstanceId:string,
+TcpFlags:int,
+PktSrcAddr:string,
+SourceSystem:string,
+Type:string,
+_TimeReceived:datetime)
+
+.alter table AWSVPCFlow policy caching hot = 1d
+
+.create-or-alter function AWSVPCFlowExpand() {
+AWSVPCFlowRaw
+| mv-expand events = records
+// Alternative for non-nested: | extend events = records
+| project
+TimeGenerated=todatetime(events.TimeGenerated),
+TenantId=toguid(events.TenantId),
+AzId=tostring(events.AzId),
+SublocationType=tostring(events.SublocationType),
+SublocationId=tostring(events.SublocationId),
+PktSrcAwsService=tostring(events.PktSrcAwsService),
+PktDstAwsService=tostring(events.PktDstAwsService),
+FlowDirection=tostring(events.FlowDirection),
+TrafficPath=tostring(events.TrafficPath),
+Start=todatetime(events.Start),
+EcsClusterArn=tostring(events.EcsClusterArn),
+EcsClusterName=tostring(events.EcsClusterName),
+EcsContainerInstanceArn=tostring(events.EcsContainerInstanceArn),
+EcsContainerInstanceId=tostring(events.EcsContainerInstanceId),
+EcsContainerId=tostring(events.EcsContainerId),
+EcsSecondContainerId=tostring(events.EcsSecondContainerId),
+EcsServiceName=tostring(events.EcsServiceName),
+EcsTaskDefinitionArn=tostring(events.EcsTaskDefinitionArn),
+EcsTaskArn=tostring(events.EcsTaskArn),
+Region=tostring(events.Region),
+EcsTaskId=tostring(events.EcsTaskId),
+PktDstAddr=tostring(events.PktDstAddr),
+TrafficType=tostring(events.TrafficType),
+Version=toint(events.Version),
+AccountId=tostring(events.AccountId),
+InterfaceId=tostring(events.InterfaceId),
+SrcAddr=tostring(events.SrcAddr),
+DstAddr=tostring(events.DstAddr),
+SrcPort=toint(events.SrcPort),
+DstPort=toint(events.DstPort),
+Protocol=toint(events.Protocol),
+Packets=toint(events.Packets),
+Bytes=tolong(events.Bytes),
+End=todatetime(events.End),
+Action=tostring(events.Action),
+LogStatus=tostring(events.LogStatus),
+VpcId=tostring(events.VpcId),
+SubnetId=tostring(events.SubnetId),
+InstanceId=tostring(events.InstanceId),
+TcpFlags=toint(events.TcpFlags),
+PktSrcAddr=tostring(events.PktSrcAddr),
+SourceSystem=tostring(events.SourceSystem),
+Type=tostring(events.Type),
+_TimeReceived=todatetime(now())
+}
+
+.alter table AWSVPCFlow policy update @'[{"Source": "AWSVPCFlowRaw", "Query": "AWSVPCFlowExpand()", "IsEnabled": "True", "IsTransactional": true}]'

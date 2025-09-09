@@ -1,0 +1,44 @@
+﻿// ============================================================================
+// Azure Data Explorer KQL Script for AWSCloudWatch
+// ============================================================================
+// Generated: 2025-09-09 11:39:54
+// Table type: Microsoft
+// Schema discovered using hybrid approach (Management API + getschema)
+// ============================================================================
+
+.create-merge table AWSCloudWatchRaw (records:dynamic)
+
+.alter-merge table AWSCloudWatchRaw policy retention softdelete = 1d
+
+.alter table AWSCloudWatchRaw policy caching hot = 1h
+
+// JSON mapping - choose appropriate option based on data structure
+.create-or-alter table AWSCloudWatchRaw ingestion json mapping 'AWSCloudWatchRawMapping' '[{"column":"records","Properties":{"path":"$.records"}}]'
+// Alternative for direct events: '[{"column":"records","Properties":{"path":"$"}}]'
+
+.create-merge table AWSCloudWatch(
+TimeGenerated:datetime,
+TenantId:guid,
+ExtractedTime:datetime,
+Message:string,
+SourceSystem:string,
+Type:string,
+_TimeReceived:datetime)
+
+.alter table AWSCloudWatch policy caching hot = 1d
+
+.create-or-alter function AWSCloudWatchExpand() {
+AWSCloudWatchRaw
+| mv-expand events = records
+// Alternative for non-nested: | extend events = records
+| project
+TimeGenerated=todatetime(events.TimeGenerated),
+TenantId=toguid(events.TenantId),
+ExtractedTime=todatetime(events.ExtractedTime),
+Message=tostring(events.Message),
+SourceSystem=tostring(events.SourceSystem),
+Type=tostring(events.Type),
+_TimeReceived=todatetime(now())
+}
+
+.alter table AWSCloudWatch policy update @'[{"Source": "AWSCloudWatchRaw", "Query": "AWSCloudWatchExpand()", "IsEnabled": "True", "IsTransactional": true}]'

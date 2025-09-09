@@ -1,0 +1,84 @@
+﻿// ============================================================================
+// Azure Data Explorer KQL Script for WindowsEvent
+// ============================================================================
+// Generated: 2025-09-09 11:40:18
+// Table type: Microsoft
+// Schema discovered using hybrid approach (Management API + getschema)
+// ============================================================================
+
+.create-merge table WindowsEventRaw (records:dynamic)
+
+.alter-merge table WindowsEventRaw policy retention softdelete = 1d
+
+.alter table WindowsEventRaw policy caching hot = 1h
+
+// JSON mapping - choose appropriate option based on data structure
+.create-or-alter table WindowsEventRaw ingestion json mapping 'WindowsEventRawMapping' '[{"column":"records","Properties":{"path":"$.records"}}]'
+// Alternative for direct events: '[{"column":"records","Properties":{"path":"$"}}]'
+
+.create-merge table WindowsEvent(
+TimeGenerated:datetime,
+TenantId:guid,
+EventOriginId:string,
+EventID:int,
+RawEventData:string,
+EventData:dynamic,
+Data:dynamic,
+EventRecordId:string,
+SystemThreadId:int,
+SystemProcessId:int,
+Correlation:string,
+ManagementGroupName:string,
+Keywords:string,
+Version:int,
+SystemUserId:string,
+EventLevelName:string,
+EventLevel:int,
+Task:int,
+Computer:string,
+Channel:string,
+Provider:string,
+SourceSystem:string,
+Opcode:string,
+TimeCreated:datetime,
+Type:string,
+_ResourceId:string,
+_TimeReceived:datetime)
+
+.alter table WindowsEvent policy caching hot = 1d
+
+.create-or-alter function WindowsEventExpand() {
+WindowsEventRaw
+| mv-expand events = records
+// Alternative for non-nested: | extend events = records
+| project
+TimeGenerated=todatetime(events.TimeGenerated),
+TenantId=toguid(events.TenantId),
+EventOriginId=tostring(events.EventOriginId),
+EventID=toint(events.EventID),
+RawEventData=tostring(events.RawEventData),
+EventData=todynamic(events.EventData),
+Data=todynamic(events.Data),
+EventRecordId=tostring(events.EventRecordId),
+SystemThreadId=toint(events.SystemThreadId),
+SystemProcessId=toint(events.SystemProcessId),
+Correlation=tostring(events.Correlation),
+ManagementGroupName=tostring(events.ManagementGroupName),
+Keywords=tostring(events.Keywords),
+Version=toint(events.Version),
+SystemUserId=tostring(events.SystemUserId),
+EventLevelName=tostring(events.EventLevelName),
+EventLevel=toint(events.EventLevel),
+Task=toint(events.Task),
+Computer=tostring(events.Computer),
+Channel=tostring(events.Channel),
+Provider=tostring(events.Provider),
+SourceSystem=tostring(events.SourceSystem),
+Opcode=tostring(events.Opcode),
+TimeCreated=todatetime(events.TimeCreated),
+Type=tostring(events.Type),
+_ResourceId=tostring(events._ResourceId),
+_TimeReceived=todatetime(now())
+}
+
+.alter table WindowsEvent policy update @'[{"Source": "WindowsEventRaw", "Query": "WindowsEventExpand()", "IsEnabled": "True", "IsTransactional": true}]'

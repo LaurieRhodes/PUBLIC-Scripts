@@ -1,0 +1,68 @@
+﻿// ============================================================================
+// Azure Data Explorer KQL Script for Syslog
+// ============================================================================
+// Generated: 2025-09-09 11:40:16
+// Table type: Microsoft
+// Schema discovered using hybrid approach (Management API + getschema)
+// ============================================================================
+
+.create-merge table SyslogRaw (records:dynamic)
+
+.alter-merge table SyslogRaw policy retention softdelete = 1d
+
+.alter table SyslogRaw policy caching hot = 1h
+
+// JSON mapping - choose appropriate option based on data structure
+.create-or-alter table SyslogRaw ingestion json mapping 'SyslogRawMapping' '[{"column":"records","Properties":{"path":"$.records"}}]'
+// Alternative for direct events: '[{"column":"records","Properties":{"path":"$"}}]'
+
+.create-merge table Syslog(
+TimeGenerated:datetime,
+TenantId:guid,
+SourceSystem:string,
+MG:guid,
+TimeCollected:datetime,
+ManagementGroupName:string,
+Computer:string,
+EventTime:datetime,
+Facility:string,
+HostName:string,
+SeverityLevel:string,
+SyslogMessage:string,
+ProcessID:int,
+HostIP:string,
+ProcessName:string,
+CollectorHostName:string,
+Type:string,
+_ResourceId:string,
+_TimeReceived:datetime)
+
+.alter table Syslog policy caching hot = 1d
+
+.create-or-alter function SyslogExpand() {
+SyslogRaw
+| mv-expand events = records
+// Alternative for non-nested: | extend events = records
+| project
+TimeGenerated=todatetime(events.TimeGenerated),
+TenantId=toguid(events.TenantId),
+SourceSystem=tostring(events.SourceSystem),
+MG=toguid(events.MG),
+TimeCollected=todatetime(events.TimeCollected),
+ManagementGroupName=tostring(events.ManagementGroupName),
+Computer=tostring(events.Computer),
+EventTime=todatetime(events.EventTime),
+Facility=tostring(events.Facility),
+HostName=tostring(events.HostName),
+SeverityLevel=tostring(events.SeverityLevel),
+SyslogMessage=tostring(events.SyslogMessage),
+ProcessID=toint(events.ProcessID),
+HostIP=tostring(events.HostIP),
+ProcessName=tostring(events.ProcessName),
+CollectorHostName=tostring(events.CollectorHostName),
+Type=tostring(events.Type),
+_ResourceId=tostring(events._ResourceId),
+_TimeReceived=todatetime(now())
+}
+
+.alter table Syslog policy update @'[{"Source": "SyslogRaw", "Query": "SyslogExpand()", "IsEnabled": "True", "IsTransactional": true}]'

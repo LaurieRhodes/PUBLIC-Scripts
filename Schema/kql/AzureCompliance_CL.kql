@@ -1,0 +1,64 @@
+﻿// ============================================================================
+// Azure Data Explorer KQL Script for AzureCompliance_CL
+// ============================================================================
+// Generated: 2025-09-09 10:14:44
+// Table type: CustomLog
+// Schema discovered using hybrid approach (Management API + getschema)
+// ============================================================================
+
+.create-merge table AzureCompliance_CLRaw (records:dynamic)
+
+.alter-merge table AzureCompliance_CLRaw policy retention softdelete = 1d
+
+.alter table AzureCompliance_CLRaw policy caching hot = 1h
+
+// JSON mapping - choose appropriate option based on data structure
+.create-or-alter table AzureCompliance_CLRaw ingestion json mapping 'AzureCompliance_CLRawMapping' '[{"column":"records","Properties":{"path":"$.records"}}]'
+// Alternative for direct events: '[{"column":"records","Properties":{"path":"$"}}]'
+
+.create-merge table AzureCompliance_CL(
+TimeGenerated:datetime,
+Name_g:guid,
+Type_s:string,
+ResourceGroup:string,
+Compliant_s:string,
+Message:string,
+GUID_g:guid,
+Name_s:string,
+TenantId:guid,
+SourceSystem:string,
+MG:string,
+ManagementGroupName:string,
+Computer:string,
+RawData:string,
+Type:string,
+_ResourceId:string,
+_TimeReceived:datetime)
+
+.alter table AzureCompliance_CL policy caching hot = 1d
+
+.create-or-alter function AzureCompliance_CLExpand() {
+AzureCompliance_CLRaw
+| mv-expand events = records
+// Alternative for non-nested: | extend events = records
+| project
+TimeGenerated=todatetime(events.TimeGenerated),
+Name_g=toguid(events.Name_g),
+Type_s=tostring(events.Type_s),
+ResourceGroup=tostring(events.ResourceGroup),
+Compliant_s=tostring(events.Compliant_s),
+Message=tostring(events.Message),
+GUID_g=toguid(events.GUID_g),
+Name_s=tostring(events.Name_s),
+TenantId=toguid(events.TenantId),
+SourceSystem=tostring(events.SourceSystem),
+MG=tostring(events.MG),
+ManagementGroupName=tostring(events.ManagementGroupName),
+Computer=tostring(events.Computer),
+RawData=tostring(events.RawData),
+Type=tostring(events.Type),
+_ResourceId=tostring(events._ResourceId),
+_TimeReceived=todatetime(now())
+}
+
+.alter table AzureCompliance_CL policy update @'[{"Source": "AzureCompliance_CLRaw", "Query": "AzureCompliance_CLExpand()", "IsEnabled": "True", "IsTransactional": true}]'

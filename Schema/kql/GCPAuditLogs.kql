@@ -1,0 +1,86 @@
+﻿// ============================================================================
+// Azure Data Explorer KQL Script for GCPAuditLogs
+// ============================================================================
+// Generated: 2025-09-09 11:40:12
+// Table type: Microsoft
+// Schema discovered using hybrid approach (Management API + getschema)
+// ============================================================================
+
+.create-merge table GCPAuditLogsRaw (records:dynamic)
+
+.alter-merge table GCPAuditLogsRaw policy retention softdelete = 1d
+
+.alter table GCPAuditLogsRaw policy caching hot = 1h
+
+// JSON mapping - choose appropriate option based on data structure
+.create-or-alter table GCPAuditLogsRaw ingestion json mapping 'GCPAuditLogsRawMapping' '[{"column":"records","Properties":{"path":"$.records"}}]'
+// Alternative for direct events: '[{"column":"records","Properties":{"path":"$"}}]'
+
+.create-merge table GCPAuditLogs(
+TimeGenerated:datetime,
+TenantId:guid,
+ServiceData:dynamic,
+ResourceOriginalState:dynamic,
+ResourceLocation:dynamic,
+Subscription:string,
+GCPResourceType:string,
+Severity:string,
+ProjectId:string,
+Timestamp:datetime,
+LogName:string,
+PrincipalEmail:string,
+InsertId:string,
+StatusMessage:string,
+Response:dynamic,
+Request:dynamic,
+RequestMetadata:dynamic,
+AuthorizationInfo:dynamic,
+AuthenticationInfo:dynamic,
+Status:dynamic,
+NumResponseItems:string,
+GCPResourceName:string,
+MethodName:string,
+ServiceName:string,
+Metadata:dynamic,
+SourceSystem:string,
+Type:string,
+_TimeReceived:datetime)
+
+.alter table GCPAuditLogs policy caching hot = 1d
+
+.create-or-alter function GCPAuditLogsExpand() {
+GCPAuditLogsRaw
+| mv-expand events = records
+// Alternative for non-nested: | extend events = records
+| project
+TimeGenerated=todatetime(events.TimeGenerated),
+TenantId=toguid(events.TenantId),
+ServiceData=todynamic(events.ServiceData),
+ResourceOriginalState=todynamic(events.ResourceOriginalState),
+ResourceLocation=todynamic(events.ResourceLocation),
+Subscription=tostring(events.Subscription),
+GCPResourceType=tostring(events.GCPResourceType),
+Severity=tostring(events.Severity),
+ProjectId=tostring(events.ProjectId),
+Timestamp=todatetime(events.Timestamp),
+LogName=tostring(events.LogName),
+PrincipalEmail=tostring(events.PrincipalEmail),
+InsertId=tostring(events.InsertId),
+StatusMessage=tostring(events.StatusMessage),
+Response=todynamic(events.Response),
+Request=todynamic(events.Request),
+RequestMetadata=todynamic(events.RequestMetadata),
+AuthorizationInfo=todynamic(events.AuthorizationInfo),
+AuthenticationInfo=todynamic(events.AuthenticationInfo),
+Status=todynamic(events.Status),
+NumResponseItems=tostring(events.NumResponseItems),
+GCPResourceName=tostring(events.GCPResourceName),
+MethodName=tostring(events.MethodName),
+ServiceName=tostring(events.ServiceName),
+Metadata=todynamic(events.Metadata),
+SourceSystem=tostring(events.SourceSystem),
+Type=tostring(events.Type),
+_TimeReceived=todatetime(now())
+}
+
+.alter table GCPAuditLogs policy update @'[{"Source": "GCPAuditLogsRaw", "Query": "GCPAuditLogsExpand()", "IsEnabled": "True", "IsTransactional": true}]'
